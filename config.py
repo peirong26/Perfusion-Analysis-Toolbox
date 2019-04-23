@@ -23,8 +23,8 @@ def parse_config():
 
     parser.add_argument('--to_tensor', type = bool, default = True, help = 'Whether need to convert to torch.tensor')
     parser.add_argument('--mask', type = list, default = [[], [0,489], [60,501]], help = "Used as BackGround Code for MRP, \
-        while BrainMask list ([[min_slice, max_slice], [min_row, max_row], [min_column, max_column]] for CTP (UNC)") 
-        # default: [0] for MRP, [[], [0,489], [60,501]] for CTP (UNC)
+        while BrainMask -300 for CTP (UNC)") 
+        # default: 0 for MRP, [[], [0,489], [60,501]] for CTP (UNC)
 
     args = parser.parse_args()
 

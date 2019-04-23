@@ -56,6 +56,21 @@ def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
         shutil.copyfile(last_file_path, best_file_path)
 
 
+def cutoff_percentile(image, mask = None, percentile_lower = 0.2, percentile_upper = 99.8):
+	
+	if mask is None:
+		mask = image != image[0, 0, 0]
+	cut_off_lower = np.percentile(image[mask != 0].ravel(), percentile_lower)
+	cut_off_upper = np.percentile(image[mask != 0].ravel(), percentile_upper)
+	print('Clip within [%.3f, %.3f]' % (cut_off_lower, cut_off_upper))
+
+	res = np.copy(image)
+	res[(res < cut_off_lower) & (mask != 0)] = cut_off_lower
+	res[(res > cut_off_upper) & (mask != 0)] = cut_off_upper
+
+	return res
+
+
 def load_checkpoint(checkpoint_path, model, optimizer = None):
     """Loads model and training parameters from a given checkpoint_path
     If optimizer is provided, loads optimizer's state_dict of as well.

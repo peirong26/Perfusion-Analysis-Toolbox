@@ -2,6 +2,9 @@ import os
 import torch 
 import numpy as np
 import SimpleITK as sitk
+import scipy.ndimage as ndimage
+
+from utils import cutoff_percentile
 
 def read_signal(FileName, ImageType, ToTensor = True, Mask = [0]):
 
@@ -89,7 +92,7 @@ def read_ctp(FileName, ToTensor = True, BrainMask = []):
     sig_nda = sig_nda.astype(float)
     print('  Raw signal array shape:', sig_nda.shape)
 
-    # Extract brain region (for UNC CTP)
+    # Crop brain region (for UNC CTP)
     if not len(BrainMask) == 3:
         raise ValueError("Mask list for CTP should have 3 sub-list element, \
             with value [[min_slice, max_slice], [min_row, max_row], [min_column, max_column]], \
@@ -103,6 +106,23 @@ def read_ctp(FileName, ToTensor = True, BrainMask = []):
     sig_resize = sig_nda[BrainMask[0][0] : BrainMask[0][1], BrainMask[1][0] : BrainMask[1][1], BrainMask[2][0] : BrainMask[2][1], :]
     print('  Resized signal array shape:', sig_resize.shape)
 
+    # Masked out non-brain region of raw CT perfusion signal image
+    brain_nda = sig_resize[..., 0]
+    mask = np.zeros(brain_nda.shape)
+    brain = np.where(brain_nda >- 300) # TODO
+    mask[brain] = 1
+    mask = ndimage.binary_fill_holes(mask)
+    mask = np.repeat(mask[..., np.newaxis], sig_resize.shape[3], axis = 3)
+
+    print('  Masked out non-brain region of raw CT perfusion signal image.')
+    sig_masked = mask * sig_resize
+
+    # Normalize masked CT over brain region
+    CutOff = 2.0
+    tmp = cutoff_percentile(sig_masked, mask, CutOff, 100.0 - CutOff)
+    sig_masked_normalized = np.copy(sig_masked)
+    sig_masked_normalized[mask] = (sig_masked[mask] - tmp[mask].mean()) / tmp[mask].std()
+
     # Save resized signal image as image_resized.nii
     img_resize = sitk.GetImageFromArray(sig_resize, isVector = True)
     img_resize.SetDirection(sig_raw.GetDirection())
@@ -111,10 +131,28 @@ def read_ctp(FileName, ToTensor = True, BrainMask = []):
     new_origin = sig_raw.GetOrigin() + np.array([BrainMask[0][0], BrainMask[1][0], BrainMask[2][0]]) * sig_raw.GetSpacing()
     img_resize.SetOrigin(new_origin)
     ResizeFileName = '%s_resized.nii' % FileName[:-4]
-    print('  Reized signal image saved as:', os.path.basename(ResizeFileName))
+    print('  Resized signal image saved as:', os.path.basename(ResizeFileName))
     sitk.WriteImage(img_resize, ResizeFileName)
 
-    if ToTensor:
-        sig_resize = torch.from_numpy(sig_resize)
+    # Save masked signal image as image_masked.nii
+    img_masked = sitk.GetImageFromArray(sig_masked, isVector = True)
+    img_masked.SetOrigin(img_resize.GetOrigin())
+    img_masked.SetDirection(img_resize.GetDirection())
+    img_masked.SetSpacing(img_resize.GetSpacing())
+    MaskedFileName = '%s_masked.nii' % FileName[:-4]
+    print('  Masked signal image saved as:', os.path.basename(MaskedFileName))
+    sitk.WriteImage(img_masked, MaskedFileName) 
+    
+    # Save normalized signal image as image_normalized.nii
+    img_normalized = sitk.GetImageFromArray(sig_masked_normalized, isVector = True)
+    img_normalized.SetOrigin(img_resize.GetOrigin())
+    img_normalized.SetDirection(img_resize.GetDirection())
+    img_normalized.SetSpacing(img_resize.GetSpacing())
+    NormalizedFileName = '%s_normalized.nii' % FileName[:-4]
+    print('  Normalized signal image saved as:', os.path.basename(NormalizedFileName))
+    sitk.WriteImage(img_normalized, NormalizedFileName)
 
-    return sig_resize, img_resize.GetOrigin(), img_resize.GetSpacing(), img_resize.GetDirection()
+    if ToTensor:
+        sig_masked_normalized = torch.from_numpy(sig_masked_normalized)
+
+    return sig_masked_normalized, img_resize.GetOrigin(), img_resize.GetSpacing(), img_resize.GetDirection()
