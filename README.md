@@ -1,4 +1,4 @@
-# Perfusion-Analysis-Toolbox
+# Perfusion-Analysis-Toolbox (Pytorch Version)
 Compute various perfusion parameters given a 4D perfusion image. 
 
 (Current progress: Extracting AIF...)
