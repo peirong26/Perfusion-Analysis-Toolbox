@@ -13,3 +13,7 @@ b) Set correct parameters in utils/DSC_mri_getOptions.m
 c) Set path/to/image in DSC_main_demo.m
 
 d) Run DSC_main_demo.m
+
+
+## References:
+https://github.com/marcocastellaro/dsc-mri-toolbox
